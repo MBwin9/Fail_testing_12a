@@ -41,7 +41,15 @@ if 'user_names' not in st.session_state:
 # ============================================================================
 
 def load_bets() -> List[Dict]:
-    """Load bets from JSON file"""
+    """Load bets from storage (Google Sheets if available, otherwise JSON file)"""
+    # Try Google Sheets first (for cloud deployment)
+    try:
+        if hasattr(st, 'secrets') and 'GOOGLE_SHEETS_URL' in st.secrets:
+            return load_bets_from_sheets()
+    except:
+        pass
+    
+    # Fallback to local JSON file
     if os.path.exists(DATA_FILE):
         try:
             with open(DATA_FILE, 'r') as f:
@@ -51,9 +59,75 @@ def load_bets() -> List[Dict]:
     return []
 
 def save_bets(bets: List[Dict]):
-    """Save bets to JSON file"""
-    with open(DATA_FILE, 'w') as f:
-        json.dump(bets, f, indent=2)
+    """Save bets to storage (Google Sheets if available, otherwise JSON file)"""
+    # Try Google Sheets first (for cloud deployment)
+    try:
+        if hasattr(st, 'secrets') and 'GOOGLE_SHEETS_URL' in st.secrets:
+            save_bets_to_sheets(bets)
+            return
+    except Exception as e:
+        st.warning(f"Could not save to Google Sheets: {e}. Saving to local file instead.")
+    
+    # Fallback to local JSON file
+    try:
+        with open(DATA_FILE, 'w') as f:
+            json.dump(bets, f, indent=2)
+    except Exception as e:
+        st.error(f"Could not save bets: {e}")
+
+def load_bets_from_sheets() -> List[Dict]:
+    """Load bets from Google Sheets"""
+    try:
+        import gspread
+        from google.oauth2.service_account import Credentials
+        
+        # Get credentials from Streamlit secrets
+        creds_dict = st.secrets["GOOGLE_CREDENTIALS"]
+        scope = ['https://www.googleapis.com/auth/spreadsheets', 'https://www.googleapis.com/auth/drive']
+        creds = Credentials.from_service_account_info(creds_dict, scopes=scope)
+        client = gspread.authorize(creds)
+        
+        # Open the sheet
+        sheet_url = st.secrets["GOOGLE_SHEETS_URL"]
+        sheet = client.open_by_url(sheet_url).sheet1
+        
+        # Read all data
+        data = sheet.get_all_records()
+        return data if data else []
+    except Exception as e:
+        st.error(f"Error loading from Google Sheets: {e}")
+        return []
+
+def save_bets_to_sheets(bets: List[Dict]):
+    """Save bets to Google Sheets"""
+    try:
+        import gspread
+        from google.oauth2.service_account import Credentials
+        
+        # Get credentials from Streamlit secrets
+        creds_dict = st.secrets["GOOGLE_CREDENTIALS"]
+        scope = ['https://www.googleapis.com/auth/spreadsheets', 'https://www.googleapis.com/auth/drive']
+        creds = Credentials.from_service_account_info(creds_dict, scopes=scope)
+        client = gspread.authorize(creds)
+        
+        # Open the sheet
+        sheet_url = st.secrets["GOOGLE_SHEETS_URL"]
+        sheet = client.open_by_url(sheet_url).sheet1
+        
+        # Clear existing data
+        sheet.clear()
+        
+        # Write headers if we have data
+        if bets:
+            headers = list(bets[0].keys())
+            sheet.append_row(headers)
+            
+            # Write all bets
+            for bet in bets:
+                row = [bet.get(header, '') for header in headers]
+                sheet.append_row(row)
+    except Exception as e:
+        raise Exception(f"Error saving to Google Sheets: {e}")
 
 def initialize_data():
     """Initialize session state with saved data"""
