@@ -27,12 +27,12 @@ SPORT_MAP = {
 if 'bets' not in st.session_state:
     st.session_state.bets = []
 if 'users' not in st.session_state:
-    st.session_state.users = ["User A", "User B", "User C"]
+    st.session_state.users = ["Michael", "Tim", "User C"]
 if 'user_names' not in st.session_state:
-    # Hardcoded user names
+    # User name mappings (for backward compatibility and User C)
     st.session_state.user_names = {
-        "User A": "Michael",
-        "User B": "Tim",
+        "Michael": "Michael",
+        "Tim": "Tim",
         "User C": ""
     }
 
@@ -549,12 +549,16 @@ def main():
     
     # User names (hardcoded)
     st.sidebar.subheader("User Names")
-    st.sidebar.write("**User A:** Michael")
-    st.sidebar.write("**User B:** Tim")
+    st.sidebar.write("**Michael**")
+    st.sidebar.write("**Tim**")
     user_c_name = st.sidebar.text_input("User C Name", value=st.session_state.user_names.get("User C", ""), key="user_c")
     
     if user_c_name:
         st.session_state.user_names["User C"] = user_c_name
+        # Update users list if User C name is set
+        if user_c_name and "User C" in st.session_state.users:
+            st.session_state.users = ["Michael", "Tim", user_c_name]
+            st.session_state.user_names[user_c_name] = user_c_name
     
     # League selection
     league = st.sidebar.selectbox("League", ["NFL", "NCAAF"], key="league")
@@ -599,12 +603,12 @@ def main():
                     st.error("Could not fetch scores")
         
         # Calculate stats for all users
-        user_a_stats = calculate_user_stats(st.session_state.bets, "User A")
-        user_b_stats = calculate_user_stats(st.session_state.bets, "User B")
+        user_a_stats = calculate_user_stats(st.session_state.bets, "Michael")
+        user_b_stats = calculate_user_stats(st.session_state.bets, "Tim")
         user_c_stats = calculate_user_stats(st.session_state.bets, "User C")
         
-        user_a_display = st.session_state.user_names.get("User A", "User A")
-        user_b_display = st.session_state.user_names.get("User B", "User B")
+        user_a_display = "Michael"
+        user_b_display = "Tim"
         user_c_display = st.session_state.user_names.get("User C", "User C")
         
         # Determine current leader
@@ -719,7 +723,7 @@ def main():
         col1, col2, col3 = st.columns(3)
         
         with col1:
-            # User A Card
+            # Michael Card
             st.markdown(f"#### 👤 {user_a_display}")
             
             # Net P/L with color coding
@@ -750,7 +754,7 @@ def main():
                 st.markdown(f"**Juice Paid:** <span style='color: red;'>-{format_currency(juice_a)}</span>", unsafe_allow_html=True)
         
         with col2:
-            # User B Card
+            # Tim Card
             st.markdown(f"#### 👤 {user_b_display}")
             
             # Net P/L with color coding
@@ -913,7 +917,7 @@ def main():
                     col_past1, col_past2 = st.columns(2)
                     
                     with col_past1:
-                        past_user = st.selectbox("User", ["User A", "User B", "User C"], key=f"past_user_{game_data['game']}")
+                        past_user = st.selectbox("User", ["Michael", "Tim", "User C"], key=f"past_user_{game_data['game']}")
                         past_bet_type = st.selectbox("Bet Type", ["Spread", "Over/Under"], key=f"past_type_{game_data['game']}")
                         past_stake = st.number_input("Stake ($)", min_value=1.0, value=50.0, step=1.0, key=f"past_stake_{game_data['game']}")
                         past_no_juice = st.checkbox("No Juice", value=False, key=f"past_no_juice_{game_data['game']}")
@@ -994,7 +998,7 @@ def main():
             **Supported CSV Format:**
             - Columns: Team name, Bet Type, odds (spread), final (score), Michael (stake), Tim (stake)
             - Automatically groups rows into games
-            - Creates bets for Michael (User A) and Tim (User B) based on stake columns
+            - Creates bets for Michael and Tim based on stake columns
             """)
             
             uploaded_file = st.file_uploader("Choose CSV file", type=['csv'], key="csv_upload")
@@ -1089,7 +1093,7 @@ def main():
                             
                             game_name = f"{away_team} vs {home_team}"
                             
-                            # Create bets for Michael (User A)
+                            # Create bets for Michael
                             if team1_data['michael_stake'] > 0:
                                 try:
                                     bet_team = team1_name
@@ -1098,7 +1102,7 @@ def main():
                                     
                                     new_bet = {
                                         'id': len(st.session_state.bets) + imported_count + 1,
-                                        'user': 'User A',
+                                        'user': 'Michael',
                                         'game': game_name,
                                         'bet_type': 'Spread',
                                         'stake': bet_stake,
@@ -1140,7 +1144,7 @@ def main():
                                     
                                     new_bet = {
                                         'id': len(st.session_state.bets) + imported_count + 1,
-                                        'user': 'User A',
+                                        'user': 'Michael',
                                         'game': game_name,
                                         'bet_type': 'Spread',
                                         'stake': bet_stake,
@@ -1174,7 +1178,7 @@ def main():
                                     st.warning(f"Game {game_idx+1} - Michael bet on {team2_name}: {str(e)}")
                                     error_count += 1
                             
-                            # Create bets for Tim (User B)
+                            # Create bets for Tim
                             if team1_data['tim_stake'] > 0:
                                 try:
                                     bet_team = team1_name
@@ -1183,7 +1187,7 @@ def main():
                                     
                                     new_bet = {
                                         'id': len(st.session_state.bets) + imported_count + 1,
-                                        'user': 'User B',
+                                        'user': 'Tim',
                                         'game': game_name,
                                         'bet_type': 'Spread',
                                         'stake': bet_stake,
@@ -1225,7 +1229,7 @@ def main():
                                     
                                     new_bet = {
                                         'id': len(st.session_state.bets) + imported_count + 1,
-                                        'user': 'User B',
+                                        'user': 'Tim',
                                         'game': game_name,
                                         'bet_type': 'Spread',
                                         'stake': bet_stake,
@@ -1291,7 +1295,7 @@ def main():
                     col_bulk1, col_bulk2, col_bulk3 = st.columns(3)
                     
                     with col_bulk1:
-                        bulk_user = st.selectbox("User", ["User A", "User B", "User C"], key=f"bulk_user_{i}")
+                        bulk_user = st.selectbox("User", ["Michael", "Tim", "User C"], key=f"bulk_user_{i}")
                         bulk_bet_type = st.selectbox("Bet Type", ["Spread", "Over/Under"], key=f"bulk_type_{i}")
                         bulk_game = st.text_input("Game", key=f"bulk_game_{i}", placeholder="e.g., Tulane vs Ole Miss")
                         bulk_stake = st.number_input("Stake ($)", min_value=1.0, value=50.0, step=1.0, key=f"bulk_stake_{i}")
@@ -1445,7 +1449,7 @@ def main():
             col1, col2 = st.columns(2)
             
             with col1:
-                user = st.selectbox("User", ["User A", "User B", "User C"], key="bet_user")
+                user = st.selectbox("User", ["Michael", "Tim", "User C"], key="bet_user")
                 bet_type = st.selectbox("Bet Type", ["Spread", "Over/Under"], key="bet_type")
                 game = st.text_input("Game (e.g., 'Oklahoma vs Alabama')", key="bet_game")
             
@@ -1801,7 +1805,7 @@ def main():
         # Filter options
         col1, col2, col3 = st.columns(3)
         with col1:
-            filter_user = st.selectbox("Filter by User", ["All", "User A", "User B", "User C"], key="filter_user")
+            filter_user = st.selectbox("Filter by User", ["All", "Michael", "Tim", "User C"], key="filter_user")
         with col2:
             filter_status = st.selectbox("Filter by Status", ["All", "Pending", "Settled"], key="filter_status")
         with col3:
@@ -1939,7 +1943,7 @@ def main():
                         
                         # Quick bet form
                         with st.form(f"quick_bet_{game_id.replace(' ', '_')}", clear_on_submit=True):
-                            quick_user = st.selectbox("User", ["User A", "User B", "User C"], key=f"quick_user_{game_id}")
+                            quick_user = st.selectbox("User", ["Michael", "Tim", "User C"], key=f"quick_user_{game_id}")
                             quick_bet_type = st.selectbox("Bet Type", ["Spread", "Over/Under"], key=f"quick_type_{game_id}")
                             
                             if quick_bet_type == "Spread":
