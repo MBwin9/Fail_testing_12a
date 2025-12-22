@@ -41,12 +41,12 @@ if 'user_names' not in st.session_state:
 # ============================================================================
 
 def load_bets() -> List[Dict]:
-    """Load bets from storage (Google Sheets if available, otherwise JSON file)"""
-    # Try Google Sheets first (for cloud deployment)
+    """Load bets from storage (Supabase if available, otherwise JSON file)"""
+    # Try Supabase first (for cloud deployment)
     try:
-        if hasattr(st, 'secrets') and 'GOOGLE_SHEETS_URL' in st.secrets:
-            return load_bets_from_sheets()
-    except:
+        if hasattr(st, 'secrets') and 'SUPABASE_URL' in st.secrets:
+            return load_bets_from_supabase()
+    except Exception as e:
         pass
     
     # Fallback to local JSON file
@@ -59,14 +59,14 @@ def load_bets() -> List[Dict]:
     return []
 
 def save_bets(bets: List[Dict]):
-    """Save bets to storage (Google Sheets if available, otherwise JSON file)"""
-    # Try Google Sheets first (for cloud deployment)
+    """Save bets to storage (Supabase if available, otherwise JSON file)"""
+    # Try Supabase first (for cloud deployment)
     try:
-        if hasattr(st, 'secrets') and 'GOOGLE_SHEETS_URL' in st.secrets:
-            save_bets_to_sheets(bets)
+        if hasattr(st, 'secrets') and 'SUPABASE_URL' in st.secrets:
+            save_bets_to_supabase(bets)
             return
     except Exception as e:
-        st.warning(f"Could not save to Google Sheets: {e}. Saving to local file instead.")
+        st.warning(f"Could not save to Supabase: {e}. Saving to local file instead.")
     
     # Fallback to local JSON file
     try:
@@ -75,59 +75,40 @@ def save_bets(bets: List[Dict]):
     except Exception as e:
         st.error(f"Could not save bets: {e}")
 
-def load_bets_from_sheets() -> List[Dict]:
-    """Load bets from Google Sheets"""
+def load_bets_from_supabase() -> List[Dict]:
+    """Load bets from Supabase"""
     try:
-        import gspread
-        from google.oauth2.service_account import Credentials
+        from supabase import create_client, Client
         
-        # Get credentials from Streamlit secrets
-        creds_dict = st.secrets["GOOGLE_CREDENTIALS"]
-        scope = ['https://www.googleapis.com/auth/spreadsheets', 'https://www.googleapis.com/auth/drive']
-        creds = Credentials.from_service_account_info(creds_dict, scopes=scope)
-        client = gspread.authorize(creds)
+        supabase_url = st.secrets["SUPABASE_URL"]
+        supabase_key = st.secrets["SUPABASE_KEY"]
+        supabase: Client = create_client(supabase_url, supabase_key)
         
-        # Open the sheet
-        sheet_url = st.secrets["GOOGLE_SHEETS_URL"]
-        sheet = client.open_by_url(sheet_url).sheet1
-        
-        # Read all data
-        data = sheet.get_all_records()
-        return data if data else []
+        # Fetch all bets
+        response = supabase.table("bets").select("*").execute()
+        return response.data if response.data else []
     except Exception as e:
-        st.error(f"Error loading from Google Sheets: {e}")
+        st.error(f"Error loading from Supabase: {e}")
         return []
 
-def save_bets_to_sheets(bets: List[Dict]):
-    """Save bets to Google Sheets"""
+def save_bets_to_supabase(bets: List[Dict]):
+    """Save bets to Supabase"""
     try:
-        import gspread
-        from google.oauth2.service_account import Credentials
+        from supabase import create_client, Client
         
-        # Get credentials from Streamlit secrets
-        creds_dict = st.secrets["GOOGLE_CREDENTIALS"]
-        scope = ['https://www.googleapis.com/auth/spreadsheets', 'https://www.googleapis.com/auth/drive']
-        creds = Credentials.from_service_account_info(creds_dict, scopes=scope)
-        client = gspread.authorize(creds)
+        supabase_url = st.secrets["SUPABASE_URL"]
+        supabase_key = st.secrets["SUPABASE_KEY"]
+        supabase: Client = create_client(supabase_url, supabase_key)
         
-        # Open the sheet
-        sheet_url = st.secrets["GOOGLE_SHEETS_URL"]
-        sheet = client.open_by_url(sheet_url).sheet1
+        # Delete all existing bets
+        supabase.table("bets").delete().neq("id", -1).execute()
         
-        # Clear existing data
-        sheet.clear()
-        
-        # Write headers if we have data
+        # Insert all bets
         if bets:
-            headers = list(bets[0].keys())
-            sheet.append_row(headers)
-            
-            # Write all bets
-            for bet in bets:
-                row = [bet.get(header, '') for header in headers]
-                sheet.append_row(row)
+            # Supabase expects a list of dicts
+            supabase.table("bets").insert(bets).execute()
     except Exception as e:
-        raise Exception(f"Error saving to Google Sheets: {e}")
+        raise Exception(f"Error saving to Supabase: {e}")
 
 def initialize_data():
     """Initialize session state with saved data"""
