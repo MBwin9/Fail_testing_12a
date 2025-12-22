@@ -1850,6 +1850,22 @@ def main():
             
             df = pd.DataFrame(bets_data)
             st.dataframe(df, width='stretch', hide_index=True)
+            
+            # Export button for filtered bets
+            st.divider()
+            csv_filtered = df.to_csv(index=False)
+            filter_label = f"_{filter_user}" if filter_user != "All" else ""
+            filter_status_label = f"_{filter_status}" if filter_status != "All" else ""
+            filter_result_label = f"_{filter_result}" if filter_result != "All" else ""
+            filename = f"bets{filter_label}{filter_status_label}{filter_result_label}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv"
+            
+            st.download_button(
+                label="📥 Export Filtered Bets to CSV",
+                data=csv_filtered,
+                file_name=filename,
+                mime="text/csv",
+                use_container_width=True
+            )
         else:
             st.info("No bets found matching filters.")
     
@@ -2073,6 +2089,17 @@ def main():
             # Display as dataframe
             df_danny = pd.DataFrame(running_tally_data)
             st.dataframe(df_danny, width='stretch', hide_index=True)
+            
+            # Export button for Danny
+            st.divider()
+            csv_danny = df_danny.to_csv(index=False)
+            st.download_button(
+                label="📥 Export Danny Bets to CSV",
+                data=csv_danny,
+                file_name=f"danny_bets_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv",
+                mime="text/csv",
+                use_container_width=True
+            )
             
             # Summary section
             st.divider()
