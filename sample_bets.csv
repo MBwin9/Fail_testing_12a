@@ -1,0 +1,12 @@
+user,game,bet_type,stake,team,spread,total,direction,home_score,away_score
+User A,Tulane vs Ole Miss,Spread,50,Ole Miss,-16.5,,,41,10
+User B,Tulane vs Ole Miss,Spread,50,Ole Miss,-16.5,,,41,10
+User A,Jame Mad vs Oregon,Spread,50,Oregon,-20.5,,,51,34
+User B,Jame Mad vs Oregon,Spread,50,Oregon,-20.5,,,51,34
+User A,Miami vs TX AM,Spread,55,Miami,3,,,3,10
+User B,Miami vs TX AM,Spread,50,TX AM,-3,,,3,10
+User A,Alabama vs Oklahoma,Spread,55,Alabama,1.5,,,24,34
+User B,Alabama vs Oklahoma,Spread,50,Oklahoma,-1.5,,,24,34
+User A,CAR vs TB,Spread,50,CAR,3,,,20,23
+User B,CAR vs TB,Spread,50,TB,-3,,,20,23
+
