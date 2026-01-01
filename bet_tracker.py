@@ -26,6 +26,8 @@ SPORT_MAP = {
 # Initialize session state
 if 'bets' not in st.session_state:
     st.session_state.bets = []
+if 'data_loaded' not in st.session_state:
+    st.session_state.data_loaded = False
 if 'users' not in st.session_state:
     st.session_state.users = ["Michael", "Tim", "User C"]
 if 'user_names' not in st.session_state:
@@ -60,6 +62,11 @@ def load_bets() -> List[Dict]:
 
 def save_bets(bets: List[Dict]):
     """Save bets to storage (Supabase if available, otherwise JSON file)"""
+    # Safety check: Don't save empty data
+    if not bets or len(bets) == 0:
+        st.warning("⚠️ Attempted to save empty bets list. Data not saved to prevent data loss.")
+        return
+    
     # Try Supabase first (for cloud deployment)
     try:
         if hasattr(st, 'secrets') and 'SUPABASE_URL' in st.secrets:
@@ -100,20 +107,28 @@ def save_bets_to_supabase(bets: List[Dict]):
         supabase_key = st.secrets["SUPABASE_KEY"]
         supabase: Client = create_client(supabase_url, supabase_key)
         
+        # Safety check: Don't delete all data if bets list is empty
+        if not bets or len(bets) == 0:
+            st.warning("⚠️ Attempted to save empty bets list. Data not saved to prevent data loss.")
+            return
+        
         # Delete all existing bets
         supabase.table("bets").delete().neq("id", -1).execute()
         
         # Insert all bets
-        if bets:
-            # Supabase expects a list of dicts
-            supabase.table("bets").insert(bets).execute()
+        # Supabase expects a list of dicts
+        supabase.table("bets").insert(bets).execute()
     except Exception as e:
         raise Exception(f"Error saving to Supabase: {e}")
 
 def initialize_data():
     """Initialize session state with saved data"""
-    if not st.session_state.bets:
-        st.session_state.bets = load_bets()
+    # Only load if we haven't loaded data yet in this session
+    if not st.session_state.data_loaded:
+        loaded_bets = load_bets()
+        if loaded_bets:
+            st.session_state.bets = loaded_bets
+        st.session_state.data_loaded = True
 
 # ============================================================================
 # API FUNCTIONS
