@@ -23,9 +23,10 @@ SPORT_MAP = {
     "NCAAF": "americanfootball_ncaaf"
 }
 
-# Initialize session state
+# Initialize session state - DON'T set bets to empty list here!
+# Let initialize_data() load from database first
 if 'bets' not in st.session_state:
-    st.session_state.bets = []
+    st.session_state.bets = None  # Use None instead of [] to indicate not loaded
 if 'data_loaded' not in st.session_state:
     st.session_state.data_loaded = False
 if 'users' not in st.session_state:
@@ -63,17 +64,25 @@ def load_bets() -> List[Dict]:
 def save_bets(bets: List[Dict]):
     """Save bets to storage (Supabase if available, otherwise JSON file)"""
     # Safety check: Don't save empty data - reload from database first to be safe
-    if not bets or len(bets) == 0:
+    if not bets or (isinstance(bets, list) and len(bets) == 0):
         st.warning("⚠️ Attempted to save empty bets list. Reloading from database...")
         # Try to reload from database before giving up
         loaded_bets = load_bets()
         if loaded_bets and len(loaded_bets) > 0:
             st.session_state.bets = loaded_bets
-            st.info(f"✅ Reloaded {len(loaded_bets)} bets from database")
+            st.info(f"✅ Reloaded {len(loaded_bets)} bets from database. Not saving empty data.")
             return
         else:
-            st.error("❌ No bets found in database. Data not saved to prevent data loss.")
-            return
+            # Check if we're in a legitimate empty state (first time use)
+            # Only allow saving empty if we've confirmed database is empty
+            current_db_bets = load_bets()
+            if current_db_bets and len(current_db_bets) > 0:
+                st.error(f"❌ Database has {len(current_db_bets)} bets but session is empty. Not saving to prevent data loss!")
+                st.session_state.bets = current_db_bets
+                return
+            else:
+                st.warning("⚠️ Database is empty. This might be the first use. Proceeding with save...")
+                # Allow save if database is truly empty (first time)
     
     # Try Supabase first (for cloud deployment)
     try:
@@ -120,16 +129,24 @@ def save_bets_to_supabase(bets: List[Dict]):
             st.warning("⚠️ Attempted to save empty bets list. Data not saved to prevent data loss.")
             return
         
-        # Additional safety: Check current database count before deleting
+        # CRITICAL SAFETY: Check current database count before deleting
         try:
             current_response = supabase.table("bets").select("id", count="exact").execute()
             current_count = current_response.count if hasattr(current_response, 'count') else len(current_response.data) if current_response.data else 0
             
-            # If we have data in DB but trying to save fewer bets, warn
-            if current_count > 0 and len(bets) < current_count * 0.5:  # Less than 50% of current data
-                st.warning(f"⚠️ Warning: Saving {len(bets)} bets but database has {current_count}. Proceeding anyway...")
-        except:
-            pass  # If check fails, proceed anyway
+            # If database has data but we're trying to save empty or much less, BLOCK IT
+            if current_count > 0:
+                if len(bets) == 0:
+                    st.error(f"🚨 BLOCKED: Attempted to save 0 bets but database has {current_count} bets! Data not saved.")
+                    raise Exception("Attempted to clear database with empty save")
+                elif len(bets) < current_count * 0.3:  # Less than 30% of current data
+                    st.error(f"🚨 WARNING: Saving {len(bets)} bets but database has {current_count} bets (less than 30%)!")
+                    st.error("This looks like data loss. Operation blocked. Please check your data.")
+                    raise Exception(f"Suspicious data loss: {len(bets)} < {current_count * 0.3}")
+        except Exception as e:
+            if "BLOCKED" in str(e) or "Suspicious" in str(e):
+                raise  # Re-raise our safety exceptions
+            pass  # If check fails for other reasons, proceed anyway
         
         # Delete all existing bets
         supabase.table("bets").delete().neq("id", -1).execute()
@@ -142,15 +159,19 @@ def save_bets_to_supabase(bets: List[Dict]):
 
 def initialize_data():
     """Initialize session state with saved data"""
-    # Always ensure we have data loaded - reload if session state is empty
-    if not st.session_state.data_loaded or not st.session_state.bets or len(st.session_state.bets) == 0:
+    # Always load from database on first run or if bets is None/empty
+    if (not st.session_state.data_loaded or 
+        st.session_state.bets is None or 
+        (isinstance(st.session_state.bets, list) and len(st.session_state.bets) == 0)):
+        
         loaded_bets = load_bets()
-        if loaded_bets:
+        if loaded_bets and len(loaded_bets) > 0:
             st.session_state.bets = loaded_bets
-        elif not st.session_state.bets:
-            # Only set to empty if we truly have no data
+            st.session_state.data_loaded = True
+        else:
+            # Only set to empty list if database is truly empty
             st.session_state.bets = []
-        st.session_state.data_loaded = True
+            st.session_state.data_loaded = True
 
 # ============================================================================
 # API FUNCTIONS
@@ -172,7 +193,7 @@ def fetch_odds(api_key: str, sport_key: str) -> Optional[List[Dict]]:
             return response.json()
         else:
             st.error(f"Error fetching odds: {response.status_code} - {response.text}")
-            return None
+        return None
     except Exception as e:
         st.error(f"Error fetching odds: {str(e)}")
         return None
@@ -188,7 +209,7 @@ def fetch_scores(api_key: str, sport_key: str, days: int = 3) -> Optional[List[D
     try:
         response = requests.get(url, params=params, timeout=10)
         if response.status_code == 200:
-            return response.json()
+    return response.json()
         else:
             st.error(f"Error fetching scores: {response.status_code} - {response.text}")
             return None
@@ -580,8 +601,8 @@ def main():
     # Header
     st.title("🏈 Brothers Bet Tracker")
     st.markdown("**Track NFL Playoffs and Bowl Games - Shared Leaderboard**")
-    
-    # Sidebar
+
+# Sidebar
     st.sidebar.header("⚙️ Settings")
     
     # User names (hardcoded)
@@ -603,7 +624,7 @@ def main():
     
     # Refresh button
     if st.sidebar.button("🔄 Refresh Data"):
-        st.cache_data.clear()
+    st.cache_data.clear()
         st.rerun()
     
     # Auto-settle bets
@@ -614,7 +635,7 @@ def main():
             save_bets(st.session_state.bets)
             st.sidebar.success("Bets settled!")
             st.rerun()
-        else:
+else:
             st.sidebar.error("Could not fetch scores")
     
     # Main tabs
@@ -1055,7 +1076,7 @@ def main():
                         
                         # Parse the CSV format
                         # Group rows into games (consecutive non-empty team rows)
-                        games = []
+        games = []
                         current_game = []
                         
                         for idx, row in df_csv.iterrows():
@@ -1415,8 +1436,8 @@ def main():
                         if not bet_data['game']:
                             st.warning(f"Bet {i+1}: Skipped - No game entered")
                             error_count += 1
-                            continue
-                        
+                continue
+            
                         if bet_data['bet_type'] == "Spread" and not bet_data['team']:
                             st.warning(f"Bet {i+1}: Skipped - No team entered for spread bet")
                             error_count += 1
