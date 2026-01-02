@@ -62,10 +62,18 @@ def load_bets() -> List[Dict]:
 
 def save_bets(bets: List[Dict]):
     """Save bets to storage (Supabase if available, otherwise JSON file)"""
-    # Safety check: Don't save empty data
+    # Safety check: Don't save empty data - reload from database first to be safe
     if not bets or len(bets) == 0:
-        st.warning("⚠️ Attempted to save empty bets list. Data not saved to prevent data loss.")
-        return
+        st.warning("⚠️ Attempted to save empty bets list. Reloading from database...")
+        # Try to reload from database before giving up
+        loaded_bets = load_bets()
+        if loaded_bets and len(loaded_bets) > 0:
+            st.session_state.bets = loaded_bets
+            st.info(f"✅ Reloaded {len(loaded_bets)} bets from database")
+            return
+        else:
+            st.error("❌ No bets found in database. Data not saved to prevent data loss.")
+            return
     
     # Try Supabase first (for cloud deployment)
     try:
@@ -112,6 +120,17 @@ def save_bets_to_supabase(bets: List[Dict]):
             st.warning("⚠️ Attempted to save empty bets list. Data not saved to prevent data loss.")
             return
         
+        # Additional safety: Check current database count before deleting
+        try:
+            current_response = supabase.table("bets").select("id", count="exact").execute()
+            current_count = current_response.count if hasattr(current_response, 'count') else len(current_response.data) if current_response.data else 0
+            
+            # If we have data in DB but trying to save fewer bets, warn
+            if current_count > 0 and len(bets) < current_count * 0.5:  # Less than 50% of current data
+                st.warning(f"⚠️ Warning: Saving {len(bets)} bets but database has {current_count}. Proceeding anyway...")
+        except:
+            pass  # If check fails, proceed anyway
+        
         # Delete all existing bets
         supabase.table("bets").delete().neq("id", -1).execute()
         
@@ -123,11 +142,14 @@ def save_bets_to_supabase(bets: List[Dict]):
 
 def initialize_data():
     """Initialize session state with saved data"""
-    # Only load if we haven't loaded data yet in this session
-    if not st.session_state.data_loaded:
+    # Always ensure we have data loaded - reload if session state is empty
+    if not st.session_state.data_loaded or not st.session_state.bets or len(st.session_state.bets) == 0:
         loaded_bets = load_bets()
         if loaded_bets:
             st.session_state.bets = loaded_bets
+        elif not st.session_state.bets:
+            # Only set to empty if we truly have no data
+            st.session_state.bets = []
         st.session_state.data_loaded = True
 
 # ============================================================================
