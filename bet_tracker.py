@@ -209,7 +209,7 @@ def fetch_scores(api_key: str, sport_key: str, days: int = 3) -> Optional[List[D
     try:
         response = requests.get(url, params=params, timeout=10)
         if response.status_code == 200:
-    return response.json()
+            return response.json()
         else:
             st.error(f"Error fetching scores: {response.status_code} - {response.text}")
             return None
@@ -624,7 +624,7 @@ def main():
     
     # Refresh button
     if st.sidebar.button("🔄 Refresh Data"):
-    st.cache_data.clear()
+        st.cache_data.clear()
         st.rerun()
     
     # Auto-settle bets
@@ -635,7 +635,7 @@ def main():
             save_bets(st.session_state.bets)
             st.sidebar.success("Bets settled!")
             st.rerun()
-else:
+        else:
             st.sidebar.error("Could not fetch scores")
     
     # Main tabs
@@ -1076,7 +1076,7 @@ else:
                         
                         # Parse the CSV format
                         # Group rows into games (consecutive non-empty team rows)
-        games = []
+                        games = []
                         current_game = []
                         
                         for idx, row in df_csv.iterrows():
@@ -1436,8 +1436,8 @@ else:
                         if not bet_data['game']:
                             st.warning(f"Bet {i+1}: Skipped - No game entered")
                             error_count += 1
-                continue
-            
+                            continue
+                        
                         if bet_data['bet_type'] == "Spread" and not bet_data['team']:
                             st.warning(f"Bet {i+1}: Skipped - No team entered for spread bet")
                             error_count += 1
